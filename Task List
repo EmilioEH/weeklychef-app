@@ -1,0 +1,630 @@
+# WeeklyChef App - Deployment Task List
+
+## 📖 Project Description
+
+**What We’re Building:**
+A mobile-friendly meal planning web application called “WeeklyChef” that helps couples plan weekly meals, generate smart grocery lists, and follow step-by-step cooking instructions.
+
+**Key Features:**
+
+- Weekly meal planner with drag-and-drop interface
+- Personal recipe library with full CRUD operations
+- AI-powered smart grocery list generation (using Gemini API)
+- Step-by-step cooking mode with progress tracking
+- Ingredient prep mode (mise en place)
+- Real-time data synchronization between multiple devices
+- Offline-capable with local caching
+
+**Technical Stack:**
+
+- **Frontend:** React (with Hooks), Lucide icons, Tailwind-style utility classes
+- **Database:** Firebase Firestore (NoSQL, real-time)
+- **Authentication:** Firebase Authentication (email/password)
+- **Hosting:** Netlify (static site hosting with CDN)
+- **Serverless Functions:** Netlify Functions (to secure API keys)
+- **AI Integration:** Google Gemini API (for grocery list optimization)
+- **Version Control:** GitHub (code repository)
+- **CI/CD:** Automated deployment from GitHub to Netlify
+
+**User Access Pattern:**
+Two users (husband and wife) will share the same account credentials to access synchronized data from separate devices (phones). All recipe modifications, meal plans, and grocery lists will sync in real-time between devices.
+
+**Security Requirements:**
+
+- Gemini API key must be hidden from client-side code
+- API calls proxied through Netlify Functions
+- Firestore security rules restrict data access to authenticated users only
+- No sensitive credentials in GitHub repository
+
+**Deployment Goal:**
+Host the application on Netlify with a custom URL, accessible from both phones, with a link embedded in the Shopify store for easy access.
+
+-----
+
+## ✅ Task List
+
+### PHASE 1: Account Setup
+
+#### GitHub Setup
+
+- [x] Create GitHub account at https://github.com
+- [x] Verify email address
+- [x] Create new repository named `weeklychef-app`
+- [x] Set repository to Public
+- [x] Enable “Add a README file” option
+- [ ] Save repository URL for reference
+
+#### GitHub Desktop Installation
+
+- [ ] Download GitHub Desktop from https://desktop.github.com
+- [ ] Install GitHub Desktop application
+- [ ] Sign in with GitHub credentials
+- [ ] Clone `weeklychef-app` repository to local computer
+- [ ] Note the local folder location on your computer
+
+#### Firebase Project Setup
+
+- [x] Go to https://console.firebase.google.com
+- [x] Click “Add project”
+- [x] Name project: `weeklychef-app`
+- [x] Disable Google Analytics
+- [x] Wait for project creation to complete
+
+#### Firebase Firestore Setup
+
+- [x] Navigate to Build → Firestore Database
+- [x] Click “Create database”
+- [x] Select “Production mode”
+- [x] Choose nearest location (e.g., us-central)
+- [x] Wait for database creation
+
+#### Firebase Authentication Setup
+
+- [x] Navigate to Build → Authentication
+- [x] Click “Get started”
+- [x] Enable “Email/Password” provider
+- [x] Save changes
+
+#### Firebase Configuration
+
+- [x] Click Project Settings (gear icon)
+- [x] Scroll to “Your apps” section
+- [x] Click Web icon (</>) to add web app
+- [x] Register app as “weeklychef-web”
+- [ ] Copy the `firebaseConfig` object
+- [ ] Save config to a secure note/file (needed for next phase)
+
+#### Netlify Account
+
+- [x] Go to https://netlify.com
+- [x] Sign up using “Sign up with GitHub”
+- [x] Authorize Netlify to access GitHub
+- [x] Complete account setup
+
+-----
+
+### PHASE 2: Code Generation
+
+#### Prepare Gemini Prompts
+
+- [ ] Open Gemini iOS app
+- [ ] Have Firebase config ready to paste
+- [ ] Have Gemini API key ready to reference
+- [ ] Have original app code ready to paste
+
+#### Generate Main Application Code
+
+- [ ] Use **PROMPT 1** in Gemini (see full guide for prompt text)
+- [ ] Paste Firebase config into prompt
+- [ ] Paste current app code into prompt
+- [ ] Wait for complete App.jsx file
+- [ ] Save response for next step
+
+#### Generate Netlify Function
+
+- [ ] Use **PROMPT 2** in Gemini
+- [ ] Include the GROCERY_SYSTEM_PROMPT from original code
+- [ ] Wait for `generate-grocery-list.js` file
+- [ ] Save response for next step
+
+#### Generate Configuration Files
+
+- [ ] Use **PROMPT 3** in Gemini
+- [ ] Wait for all config files:
+  - [ ] package.json
+  - [ ] .gitignore
+  - [ ] netlify.toml
+  - [ ] vite.config.js
+  - [ ] index.html
+  - [ ] src/main.jsx
+  - [ ] README.md
+- [ ] Save all responses
+
+#### Generate Firebase Security Rules
+
+- [ ] Use **PROMPT 4** in Gemini
+- [ ] Wait for Firestore security rules
+- [ ] Save response (will paste in Firebase Console later)
+
+-----
+
+### PHASE 3: File Organization
+
+#### Create Project Structure
+
+- [ ] Open local `weeklychef-app` folder
+- [ ] Create `netlify` folder in root
+- [ ] Create `functions` folder inside `netlify`
+- [ ] Create `src` folder in root
+
+#### Copy Files from Gemini
+
+- [ ] Copy `.gitignore` to root folder
+- [ ] Copy `README.md` to root folder
+- [ ] Copy `package.json` to root folder
+- [ ] Copy `netlify.toml` to root folder
+- [ ] Copy `vite.config.js` to root folder
+- [ ] Copy `index.html` to root folder
+- [ ] Copy `generate-grocery-list.js` to `netlify/functions/` folder
+- [ ] Copy `main.jsx` to `src/` folder
+- [ ] Copy `App.jsx` to `src/` folder
+
+#### Verify File Structure
+
+- [ ] Confirm all files are in correct locations
+- [ ] Verify no files are missing
+- [ ] Check that folder structure matches:
+
+```
+weeklychef-app/
+├── .gitignore
+├── README.md
+├── package.json
+├── netlify.toml
+├── vite.config.js
+├── index.html
+├── netlify/
+│   └── functions/
+│       └── generate-grocery-list.js
+└── src/
+    ├── main.jsx
+    └── App.jsx
+```
+
+-----
+
+### PHASE 4: Push to GitHub
+
+#### Commit Changes in GitHub Desktop
+
+- [ ] Open GitHub Desktop
+- [ ] Verify all new files appear in “Changes” list
+- [ ] Review changes to confirm correctness
+- [ ] Add commit summary: `Initial commit - WeeklyChef app with Firebase`
+- [ ] Add commit description (optional): `Added React app with Firebase auth and Netlify function`
+- [ ] Click “Commit to main”
+
+#### Push to GitHub
+
+- [ ] Click “Push origin” button in GitHub Desktop
+- [ ] Wait for push to complete
+- [ ] Open GitHub.com in browser
+- [ ] Navigate to your repository
+- [ ] Verify all files are visible online
+- [ ] Confirm no API keys are visible in any file
+
+-----
+
+### PHASE 5: Deploy to Netlify
+
+#### Connect Repository to Netlify
+
+- [ ] Go to https://app.netlify.com
+- [ ] Click “Add new site” → “Import an existing project”
+- [ ] Select “Deploy with GitHub”
+- [ ] Authorize Netlify (if prompted)
+- [ ] Find and select `weeklychef-app` repository
+- [ ] Click on repository name
+
+#### Configure Build Settings
+
+- [ ] Verify build command: `npm run build`
+- [ ] Verify publish directory: `dist`
+- [ ] Verify functions directory: `netlify/functions`
+- [ ] Leave branch as: `main`
+- [ ] Click “Deploy site”
+- [ ] Wait 2-4 minutes for initial deployment
+
+#### Get Site URL
+
+- [ ] Copy the generated URL (e.g., `https://random-name-123.netlify.app`)
+- [ ] Test URL in browser (should show login screen or loading state)
+- [ ] Save URL for reference
+
+#### Customize Site Name (Optional)
+
+- [ ] Click “Site configuration” → “Change site name”
+- [ ] Enter custom name: `weeklychef-yourname`
+- [ ] Click “Save”
+- [ ] Verify new URL: `https://weeklychef-yourname.netlify.app`
+
+#### Add Environment Variables
+
+- [ ] In Netlify dashboard, go to “Site configuration”
+- [ ] Click “Environment variables” in left menu
+- [ ] Click “Add a variable” → “Add a single variable”
+- [ ] Enter Key: `GEMINI_API_KEY`
+- [ ] Enter Value: [YOUR ACTUAL GEMINI API KEY]
+- [ ] Check all scopes (Production, Deploy previews, Branch deploys)
+- [ ] Click “Create variable”
+
+#### Trigger Redeploy
+
+- [ ] Click “Deploys” in top navigation
+- [ ] Click “Trigger deploy” dropdown
+- [ ] Select “Deploy site”
+- [ ] Wait 2-3 minutes for deployment
+- [ ] Verify deployment succeeded (green checkmark)
+
+-----
+
+### PHASE 6: Configure Firebase
+
+#### Add Authorized Domain
+
+- [ ] Go to Firebase Console → Your project
+- [ ] Navigate to Authentication → Settings tab
+- [ ] Scroll to “Authorized domains” section
+- [ ] Click “Add domain”
+- [ ] Enter your Netlify domain (without https://): `weeklychef-yourname.netlify.app`
+- [ ] Click “Add”
+
+#### Set Firestore Security Rules
+
+- [ ] Navigate to Firestore Database → Rules tab
+- [ ] Delete all existing rules in editor
+- [ ] Paste security rules from Gemini (PROMPT 4)
+- [ ] Click “Publish”
+- [ ] Wait 1-2 minutes for rules to propagate
+- [ ] Verify “Last updated” timestamp
+
+-----
+
+### PHASE 7: Testing
+
+#### Initial App Test
+
+- [ ] Open Netlify URL in browser
+- [ ] Verify login screen appears
+- [ ] Check for any console errors (F12 → Console tab)
+- [ ] Verify page loads without white screen
+- [ ] Test responsive design (resize browser window)
+
+#### Create Test Account (Your Phone)
+
+- [ ] Open Netlify URL on your phone
+- [ ] Click “Sign Up”
+- [ ] Enter email: `your-family-email@example.com`
+- [ ] Enter secure password
+- [ ] Click “Sign Up” button
+- [ ] Verify successful login (should see app interface)
+- [ ] Save credentials securely
+
+#### Test Core Functionality
+
+- [ ] Navigate to “Recipes” tab
+- [ ] Verify default recipes load (Loaded Dill Pickle Dip, Street Style Beef Tacos)
+- [ ] Navigate to “Plan” tab
+- [ ] Add a recipe to Monday
+- [ ] Verify recipe appears in plan
+- [ ] Navigate to “Shop” tab
+- [ ] Verify ingredients appear (standard list)
+- [ ] Try “Smart List” button
+- [ ] Verify AI-generated list appears (may take 5-10 seconds)
+
+#### Test Second Device (Wife’s Phone)
+
+- [ ] Open same Netlify URL on wife’s phone
+- [ ] Click “Sign In” (not Sign Up)
+- [ ] Use SAME email and password
+- [ ] Click “Sign In”
+- [ ] Verify app loads with same data
+
+#### Test Real-time Sync
+
+- [ ] On your phone: Add a new recipe
+- [ ] On wife’s phone: Pull to refresh or wait 3-5 seconds
+- [ ] Verify new recipe appears on wife’s phone
+- [ ] On wife’s phone: Update meal plan
+- [ ] On your phone: Verify plan updates appear
+- [ ] Test grocery list sync (check items on one phone)
+- [ ] Verify checks appear on other phone
+
+#### Test Offline Functionality
+
+- [ ] Turn off WiFi/data on one phone
+- [ ] Open app (should still load with cached data)
+- [ ] Add a recipe (should queue for sync)
+- [ ] Turn WiFi/data back on
+- [ ] Verify changes sync to other device
+
+-----
+
+### PHASE 8: Shopify Integration
+
+#### Option A: Add Navigation Link
+
+- [ ] Log in to Shopify Admin
+- [ ] Go to Online Store → Navigation
+- [ ] Click “Main menu”
+- [ ] Click “Add menu item”
+- [ ] Name: `Meal Planner`
+- [ ] Link: [Your Netlify URL]
+- [ ] Check “Open in new tab” (if available)
+- [ ] Click “Save menu”
+- [ ] Visit your store and verify link appears
+- [ ] Click link and verify app opens
+
+#### Option B: Create Dedicated Page
+
+- [ ] Ask Gemini for Shopify page HTML (use prompt from guide)
+- [ ] Copy generated HTML
+- [ ] In Shopify: Online Store → Pages → Add page
+- [ ] Enter page title: `Meal Planner`
+- [ ] Click “Show HTML” button (< > icon)
+- [ ] Paste Gemini’s HTML code
+- [ ] Click “Save”
+- [ ] Click “View page” to preview
+- [ ] Add page to navigation menu (see Option A steps)
+
+-----
+
+### PHASE 9: Security Verification
+
+#### Code Security Check
+
+- [ ] Go to GitHub.com → Your repository
+- [ ] Check `.gitignore` file includes:
+  - [ ] `node_modules/`
+  - [ ] `.env`
+  - [ ] `dist/`
+  - [ ] `.DS_Store`
+- [ ] Search entire repository for “AIza” (Gemini API key pattern)
+- [ ] Verify NO Gemini API key appears in any file
+- [ ] Check that Firebase config IS present (this is okay)
+
+#### Firebase Security Check
+
+- [ ] Firebase Console → Firestore Database → Rules
+- [ ] Verify rules require authentication
+- [ ] Verify users can only access their own data
+- [ ] Check “Last updated” is recent
+
+#### Netlify Security Check
+
+- [ ] Netlify → Site configuration → Environment variables
+- [ ] Verify `GEMINI_API_KEY` is set
+- [ ] Verify key is not visible (shows as dots/asterisks)
+- [ ] Check Functions logs for any errors
+
+#### API Key Restriction (Optional but Recommended)
+
+- [ ] Go to https://aistudio.google.com/app/apikey
+- [ ] Find your Gemini API key
+- [ ] Click “Edit” or three dots → “Edit”
+- [ ] Set Application restrictions:
+  - [ ] Select “HTTP referrers (web sites)”
+  - [ ] Add: `https://*.netlify.app/*`
+  - [ ] Add: `https://weeklychef-yourname.netlify.app/*`
+- [ ] Set API restrictions:
+  - [ ] Select “Restrict key”
+  - [ ] Enable only: “Generative Language API”
+- [ ] Click “Save”
+- [ ] Test app still works after restriction
+
+-----
+
+### PHASE 10: Documentation
+
+#### Update Repository README
+
+- [ ] Go to GitHub → Your repository
+- [ ] Click on `README.md`
+- [ ] Click pencil icon (Edit)
+- [ ] Add your Netlify URL to README
+- [ ] Add setup instructions for future reference
+- [ ] Add environment variables needed
+- [ ] Commit changes
+
+#### Create Personal Documentation
+
+- [ ] Document your Netlify URL
+- [ ] Document Firebase project name
+- [ ] Document login credentials (in password manager)
+- [ ] Note any customizations you made
+- [ ] Save this task list with checked items for reference
+
+#### Create Backup
+
+- [ ] Firebase Console → Firestore Database
+- [ ] Export current data structure (for reference)
+- [ ] Save export configuration
+- [ ] Consider setting up automated backups
+
+-----
+
+### PHASE 11: Final Verification
+
+#### Complete Functionality Test
+
+- [ ] Test all 4 navigation tabs (Plan, Recipes, Shop, Cook)
+- [ ] Create a new recipe from scratch
+- [ ] Edit an existing recipe
+- [ ] Delete a recipe
+- [ ] Add recipes to all 7 days of week
+- [ ] Remove a recipe from plan
+- [ ] Generate smart grocery list
+- [ ] Check off grocery items
+- [ ] Clear grocery checks
+- [ ] Use “Prep Mode” for a recipe
+- [ ] Use “Cooking Mode” for a recipe
+- [ ] Rate a recipe (stars)
+- [ ] Add notes to a recipe
+- [ ] Share a recipe (test copy to clipboard)
+
+#### Performance Test
+
+- [ ] Test app load speed (should be < 3 seconds)
+- [ ] Test navigation speed between tabs
+- [ ] Test smart list generation (should be < 10 seconds)
+- [ ] Verify smooth animations/transitions
+- [ ] Check for any lag or freezing
+
+#### Cross-device Test
+
+- [ ] Both phones: Open app simultaneously
+- [ ] Make changes on Phone 1
+- [ ] Verify changes appear on Phone 2 within 5 seconds
+- [ ] Make changes on Phone 2
+- [ ] Verify changes appear on Phone 1 within 5 seconds
+- [ ] Test with both phones offline
+- [ ] Reconnect and verify sync happens
+
+#### User Experience Test
+
+- [ ] Navigate through typical weekly workflow:
+  - [ ] Sunday: Plan meals for week
+  - [ ] Sunday: Generate grocery list
+  - [ ] Monday: Shop with list
+  - [ ] Monday evening: Prep ingredients
+  - [ ] Monday evening: Cook with cooking mode
+- [ ] Verify all steps work smoothly
+- [ ] Note any issues or improvements needed
+
+-----
+
+### PHASE 12: Optimization (Optional)
+
+#### Performance Optimization
+
+- [ ] Ask Gemini to analyze bundle size
+- [ ] Implement code splitting if needed
+- [ ] Add loading skeletons for better UX
+- [ ] Optimize images (if any added)
+- [ ] Add service worker for better offline support
+
+#### Feature Enhancements
+
+- [ ] Add recipe photos
+- [ ] Add recipe categories/tags
+- [ ] Add recipe search
+- [ ] Add nutrition information
+- [ ] Add serving size adjustment
+- [ ] Add print recipe option
+- [ ] Add recipe import from URL
+
+#### User Interface Improvements
+
+- [ ] Add dark mode toggle
+- [ ] Improve mobile keyboard handling
+- [ ] Add haptic feedback (mobile)
+- [ ] Improve error messages
+- [ ] Add success notifications
+- [ ] Add loading indicators
+
+-----
+
+## 🎉 Project Complete!
+
+- [ ] App is live and accessible
+- [ ] Both phones can access and sync
+- [ ] All features working correctly
+- [ ] Security measures in place
+- [ ] Linked from Shopify store
+- [ ] Documentation complete
+- [ ] Backup plan established
+
+-----
+
+## 📝 Notes Section
+
+**Netlify URL:**
+
+-----
+
+**Firebase Project ID:**
+
+-----
+
+**GitHub Repository:**
+
+-----
+
+**Login Credentials:**
+
+- Email: _______________________________________
+- Password: (stored in password manager)
+
+**Date Completed:**
+
+-----
+
+**Issues Encountered:**
+
+-----
+
+-----
+
+-----
+
+**Future Improvements:**
+
+-----
+
+-----
+
+-----
+
+-----
+
+## 🆘 Quick Troubleshooting Reference
+
+**If app shows blank screen:**
+
+- Check browser console (F12) for errors
+- Verify Netlify build succeeded
+- Check Firebase config is correct
+
+**If login doesn’t work:**
+
+- Verify Firebase Authentication is enabled
+- Check authorized domains in Firebase
+- Verify no typos in email/password
+
+**If grocery list won’t generate:**
+
+- Verify GEMINI_API_KEY is set in Netlify
+- Check you redeployed after adding key
+- Verify Netlify Function logs for errors
+
+**If data doesn’t sync:**
+
+- Verify both phones use same login
+- Check internet connection
+- Verify Firestore security rules are published
+
+**For any issue:**
+
+- Check browser console for errors
+- Check Netlify deploy logs
+- Check Netlify Function logs
+- Ask Gemini with specific error messages
+
+-----
+
+**Total Estimated Time:** 60-90 minutes
+**Difficulty Level:** Beginner (with Gemini’s help)
+**Cost:** ~$0.50/month (Gemini API only)
+
+**Version:** 1.0
+**Last Updated:** November 2025
