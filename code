@@ -1,0 +1,1348 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { 
+  ChefHat, 
+  X,
+  Utensils,
+  Menu,
+  Check,
+  CheckCircle2,
+  Circle,
+  ArrowRight,
+  ArrowLeft,
+  RotateCcw,
+  Calendar,
+  ShoppingBag,
+  Trash2,
+  Plus,
+  ChevronRight,
+  BookOpen,
+  Edit3,
+  Share2,
+  Star,
+  MessageSquare,
+  FileText,
+  Download,
+  MoreHorizontal,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  CalendarPlus,
+  Sparkles,
+  RefreshCw,
+  AlertCircle
+  // Removed 'Knife' to prevent import errors
+} from 'lucide-react';
+
+// --- GEMINI API CONFIG ---
+const apiKey = ""; // API Key injected by environment
+
+// --- SYSTEM PROMPT ---
+const GROCERY_SYSTEM_PROMPT = `
+<role>
+You are an expert Grocery List Generator specializing in consolidating recipe ingredients into organized shopping lists.
+</role>
+
+<task>
+Process user-provided recipes and output a categorized grocery list in Markdown format. Begin output directly with the "# Consolidated Grocery List" heading—no introductory text, explanations, or commentary.
+</task>
+
+<input_format>
+Users will provide recipes in the following format:
+
+[Recipe Title]
+Ingredients:
+• [ingredient list]
+
+**Parsing Instructions:**
+1. Extract the recipe title from the first line
+2. Extract all ingredients listed
+3. Use the recipe title to label items in the grocery list (e.g., "Recipe: Skillet Dinner Rolls")
+</input_format>
+
+<ingredient_handling>
+When processing ingredients, follow this three-tier grouping logic:
+
+**Tier 1 - Multiple Variants (Hierarchical):**
+When 2 or more distinct variants of a core ingredient exist across all recipes, use hierarchical structure:
+* **[Core Ingredient]**
+    * **[Variant 1]**
+        * Items...
+    * **[Variant 2]**
+        * Items...
+
+**Tier 2 - Single Variant, Multiple Items (Core Ingredient Only):**
+When only one variant exists but multiple quantity entries across recipes, list under core ingredient:
+* **[Core Ingredient]**
+    * Item 1...
+    * Item 2...
+
+**Tier 3 - Single Item Total (No Grouping):**
+When only one item exists for an ingredient across all recipes, list directly without core ingredient header:
+* [Quantity] [Full Ingredient Name] (Recipe: [Recipe Title])
+
+**Variants are defined by:** Descriptive modifiers indicating different product types (unsalted vs salted, all-purpose vs bread, instant vs active dry, kosher vs flaky sea, yellow vs red, fresh vs dried).
+
+**Quantity Handling:** List each unique quantity separately without arithmetic operations.
+
+**Preserve Original Wording:** Keep full ingredient descriptions exactly as written in the source recipe.
+</ingredient_handling>
+
+<output_structure>
+# Consolidated Grocery List
+
+## [Category Name]
+
+**Tier 1 (Multiple variants):**
+* **[Core Ingredient]**
+    * **[Variant 1]**
+        * [Quantity] [Full Ingredient] (Recipe: [Recipe Title])
+    * **[Variant 2]**
+        * [Quantity] [Full Ingredient] (Recipe: [Recipe Title])
+
+**Tier 2 (Single variant, multiple items):**
+* **[Core Ingredient]**
+    * [Quantity] [Full Ingredient] (Recipe: [Recipe Title])
+    * [Quantity] [Full Ingredient] (Recipe: [Recipe Title])
+
+**Tier 3 (Single item):**
+* [Quantity] [Full Ingredient] (Recipe: [Recipe Title])
+</output_structure>
+
+<categories>
+Organize ingredients into standard grocery store categories such as:
+- Produce
+- Dairy
+- Meat & Seafood
+- Pantry/Dry Goods
+- Canned Goods
+- Spices & Seasonings
+- Bakery
+- Frozen Foods
+- Beverages
+- Eggs
+</categories>
+`;
+
+// --- DATA: DEFAULT LIBRARY ---
+const DEFAULT_LIBRARY = [
+  {
+    id: 'dip',
+    title: 'Loaded Dill Pickle Dip',
+    servings: 12,
+    prepTime: 15,
+    cookTime: 0,
+    calories: 150,
+    rating: 0,
+    notes: '',
+    ingredients: [
+      { name: 'Nonfat Greek yogurt', amount: '1 1/2 cups', prep: 'Measure' },
+      { name: 'Whipped cream cheese', amount: '8 oz', prep: 'Measure' },
+      { name: 'Sour cream', amount: '1/2 cup', prep: 'Measure' },
+      { name: 'Dill pickles', amount: '1 1/2 cups', prep: 'Chop finely' },
+      { name: 'Bacon', amount: '3/4 cup', prep: 'Crumble (cooked)' },
+      { name: 'Fresh dill', amount: '2 tbsp', prep: 'Chop' },
+      { name: 'Shallot', amount: '1 small', prep: 'Dice' },
+      { name: 'Sharp cheddar cheese', amount: '4 oz', prep: 'Shred' },
+      { name: 'Ranch seasoning powder', amount: '1 packet', prep: 'Open' }
+    ],
+    steps: [
+      "Mix Greek yogurt, whipped cream cheese, and sour cream in a bowl until smooth.",
+      "Add chopped pickles, bacon, dill, diced shallot, cheddar cheese, and ranch powder.",
+      "Stir until all ingredients are well combined.",
+      "Refrigerate for at least 2 hours to let flavors meld.",
+      "Serve with club crackers or potato chips."
+    ]
+  },
+  {
+    id: 'tacos',
+    title: 'Street Style Beef Tacos',
+    servings: 4,
+    prepTime: 20,
+    cookTime: 15,
+    calories: 450,
+    rating: 0,
+    notes: '',
+    ingredients: [
+      { name: 'Flank Steak', amount: '1 lb', prep: 'Dice small' },
+      { name: 'Corn Tortillas', amount: '12', prep: 'Warm' },
+      { name: 'White Onion', amount: '1 medium', prep: 'Dice' },
+      { name: 'Cilantro', amount: '1 bunch', prep: 'Chop' },
+      { name: 'Limes', amount: '3', prep: 'Cut into wedges' },
+      { name: 'Soy Sauce', amount: '2 tbsp', prep: 'Measure' },
+      { name: 'Lime Juice', amount: '1 tbsp', prep: 'Measure' },
+      { name: 'Cumin', amount: '1 tsp', prep: 'Measure' }
+    ],
+    steps: [
+      "Marinate diced steak in soy sauce, lime juice, and cumin for 10 mins.",
+      "Heat a cast iron skillet over high heat.",
+      "Sear steak in batches until browned and crispy (approx 3-4 mins).",
+      "Warm tortillas in a dry pan.",
+      "Assemble tacos: meat, onions, cilantro, and a squeeze of lime."
+    ]
+  },
+  {
+    id: 'pasta',
+    title: 'Creamy Tomato Spinach Pasta',
+    servings: 4,
+    prepTime: 10,
+    cookTime: 20,
+    calories: 520,
+    rating: 0,
+    notes: '',
+    ingredients: [
+      { name: 'Penne Pasta', amount: '1 lb', prep: 'Box' },
+      { name: 'Olive Oil', amount: '2 tbsp', prep: 'Measure' },
+      { name: 'Garlic', amount: '3 cloves', prep: 'Mince' },
+      { name: 'Canned Diced Tomatoes', amount: '28 oz', prep: 'Open' },
+      { name: 'Heavy Cream', amount: '1/2 cup', prep: 'Measure' },
+      { name: 'Fresh Spinach', amount: '3 cups', prep: 'Rinse' },
+      { name: 'Parmesan', amount: '1/2 cup', prep: 'Grate' }
+    ],
+    steps: [
+      "Boil salted water and cook pasta al dente.",
+      "Meanwhile, sauté garlic in olive oil for 1 min.",
+      "Add tomatoes and simmer 10 mins.",
+      "Stir in heavy cream and spinach until spinach wilts.",
+      "Toss pasta with sauce and top with parmesan."
+    ]
+  },
+  {
+    id: 'salmon',
+    title: 'Sheet Pan Lemon Salmon',
+    servings: 2,
+    prepTime: 10,
+    cookTime: 15,
+    calories: 380,
+    rating: 0,
+    notes: '',
+    ingredients: [
+      { name: 'Salmon Fillets', amount: '2 (6oz)', prep: 'Pat dry' },
+      { name: 'Asparagus', amount: '1 bunch', prep: 'Trim ends' },
+      { name: 'Lemon', amount: '1', prep: 'Slice rounds' },
+      { name: 'Butter', amount: '2 tbsp', prep: 'Melt' },
+      { name: 'Garlic Powder', amount: '1 tsp', prep: 'Measure' }
+    ],
+    steps: [
+      "Preheat oven to 400°F.",
+      "Place salmon and asparagus on sheet pan.",
+      "Brush with melted butter and sprinkle garlic powder, salt, pepper.",
+      "Place lemon slices on top of fish.",
+      "Bake 12-15 minutes until fish flakes easily."
+    ]
+  }
+];
+
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+// --- HELPERS ---
+const GROCERY_CATEGORIES = {
+  'Produce': ['onion', 'garlic', 'lime', 'cilantro', 'spinach', 'asparagus', 'lemon', 'dill', 'shallot', 'potato', 'mushroom', 'carrot', 'pepper', 'bean', 'fruit', 'vegetable', 'herb', 'parsley', 'basil', 'chive', 'ginger', 'lettuce', 'tomato', 'squash', 'zucchini', 'cucumber', 'berry', 'banana', 'apple', 'avocado'],
+  'Meat & Seafood': ['steak', 'beef', 'chicken', 'turkey', 'salmon', 'fish', 'bacon', 'ham', 'sausage', 'pork', 'meat', 'lamb', 'shrimp', 'crab', 'tuna'],
+  'Dairy & Refrigerated': ['cheese', 'yogurt', 'cream', 'milk', 'butter', 'egg', 'margarine', 'sour cream'],
+  'Pantry & Grains': ['pasta', 'rice', 'flour', 'sugar', 'salt', 'oil', 'sauce', 'spice', 'seasoning', 'stock', 'broth', 'can', 'jar', 'tortilla', 'bread', 'yeast', 'baking', 'vanilla', 'chocolate', 'chip', 'nut', 'seed', 'oat', 'cereal', 'honey', 'syrup', 'vinegar', 'soy sauce', 'mayonnaise', 'mustard', 'ketchup', 'ranch', 'powder'],
+  'Frozen': ['ice cream', 'frozen', 'pizza'],
+};
+
+const getCategory = (itemName) => {
+  const lower = itemName.toLowerCase();
+  for (const [category, keywords] of Object.entries(GROCERY_CATEGORIES)) {
+    if (keywords.some(k => lower.includes(k))) return category;
+  }
+  return 'Other';
+};
+
+// --- COMPONENTS ---
+
+// 1. PREP MODE (NEW FEATURE)
+const PrepMode = ({ recipe, prepState, togglePrep, onClose }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  
+  // Safety check for recipes with no ingredients
+  const items = recipe.ingredients || [];
+  
+  if (items.length === 0) {
+    return (
+      <div className="fixed inset-0 bg-stone-100 z-50 flex items-center justify-center p-4">
+        <div className="bg-white p-6 rounded-xl shadow-xl text-center">
+          <p className="text-gray-500 mb-4">No ingredients to prep for this recipe.</p>
+          <button onClick={onClose} className="px-4 py-2 bg-gray-900 text-white rounded-lg">Close</button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentItem = items[currentIndex];
+  const isChecked = !!prepState[recipe.id]?.[currentIndex];
+
+  const handleNext = () => {
+    if (currentIndex < items.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleToggleAndNext = () => {
+    if (!isChecked) {
+      togglePrep(recipe.id, currentIndex);
+    }
+    handleNext();
+  };
+
+  const progress = ((currentIndex + 1) / items.length) * 100;
+
+  return (
+    <div className="fixed inset-0 bg-stone-100 z-50 flex flex-col animate-in slide-in-from-bottom-10 duration-300">
+      {/* Header */}
+      <div className="bg-white px-4 py-4 border-b border-gray-100 flex justify-between items-center shadow-sm">
+        <div>
+          <h2 className="font-bold text-gray-900 flex items-center gap-2">
+            <Utensils className="w-5 h-5 text-orange-600" /> Mise en Place
+          </h2>
+          <p className="text-xs text-gray-500">Prep for {recipe.title}</p>
+        </div>
+        <button onClick={onClose} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition">
+          <X className="w-5 h-5 text-gray-600" />
+        </button>
+      </div>
+
+      {/* Progress */}
+      <div className="h-1 bg-gray-200 w-full">
+        <div className="h-full bg-orange-500 transition-all duration-300" style={{ width: `${progress}%` }}></div>
+      </div>
+
+      {/* Focused Card */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-white p-8 text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-orange-400 to-red-500"></div>
+          
+          <div className="mb-8 mt-4">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest border border-gray-200 px-3 py-1 rounded-full">
+              Ingredient {currentIndex + 1} of {items.length}
+            </span>
+          </div>
+
+          <div className="mb-2 text-5xl font-bold text-gray-900 tracking-tight">{currentItem.amount}</div>
+          <div className="text-xl font-medium text-gray-600 mb-8">{currentItem.name}</div>
+
+          <div className="bg-orange-50 rounded-xl p-6 mb-8 border border-orange-100">
+            <div className="text-xs font-bold text-orange-800 uppercase tracking-wider mb-2">Action</div>
+            <div className="text-2xl font-bold text-orange-600 capitalize">
+              {currentItem.prep || "Measure & Reserve"}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <button 
+              onClick={handleToggleAndNext}
+              className="w-full py-4 bg-gray-900 hover:bg-black text-white font-bold text-lg rounded-xl shadow-lg active:scale-[0.98] transition flex items-center justify-center gap-2"
+            >
+              <CheckCircle2 className="w-6 h-6" /> {isChecked ? 'Already Done' : 'Mark Done'} & Next
+            </button>
+            <button 
+              onClick={handleNext}
+              className="w-full py-3 text-gray-400 font-bold hover:text-gray-600 hover:bg-gray-50 rounded-xl transition"
+            >
+              Skip
+            </button>
+          </div>
+        </div>
+        
+        {/* Navigation Dots */}
+        <div className="flex gap-2 mt-8 overflow-x-auto max-w-full px-4 pb-4 no-scrollbar">
+           {items.map((_, idx) => (
+              <div 
+                key={idx} 
+                onClick={() => setCurrentIndex(idx)}
+                className={`w-2.5 h-2.5 rounded-full transition-all cursor-pointer shrink-0
+                  ${idx === currentIndex ? 'bg-gray-800 scale-125' : !!prepState[recipe.id]?.[idx] ? 'bg-green-400' : 'bg-gray-300'}
+                `}
+              />
+           ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 2. RECIPE EDITOR / MANAGER
+const RecipeManager = ({ recipe, onSave, onDelete, onClose, onAddToPlan }) => {
+  const [isEditing, setIsEditing] = useState(!recipe.id);
+  const [showImport, setShowImport] = useState(false);
+  const [showPlanMenu, setShowPlanMenu] = useState(false);
+  const [rawText, setRawText] = useState('');
+  
+  const [formData, setFormData] = useState(recipe.id ? recipe : {
+    id: Date.now().toString(),
+    title: '',
+    servings: 2,
+    prepTime: 15,
+    cookTime: 15,
+    calories: 0,
+    rating: 0,
+    notes: '',
+    ingredients: [],
+    steps: []
+  });
+
+  const [ingText, setIngText] = useState(recipe.ingredients?.map(i => `${i.amount} ${i.name}`).join('\n') || '');
+  const [stepText, setStepText] = useState(recipe.steps?.join('\n') || '');
+
+  const parseRawText = () => {
+    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l);
+    const newData = { ...formData };
+    if (lines.length > 0) newData.title = lines[0];
+    setFormData(newData);
+    setShowImport(false);
+  };
+
+  const handleSave = () => {
+    const parsedIngredients = ingText.split('\n').filter(line => line.trim()).map(line => {
+      const parts = line.split(' ');
+      const amount = parts[0];
+      const name = parts.slice(1).join(' ');
+      return { name: name || amount, amount: name ? amount : '', prep: '' };
+    });
+    
+    const parsedSteps = stepText.split('\n').filter(line => line.trim());
+
+    onSave({
+      ...formData,
+      ingredients: parsedIngredients.length > 0 ? parsedIngredients : formData.ingredients,
+      steps: parsedSteps.length > 0 ? parsedSteps : formData.steps
+    });
+    setIsEditing(false);
+    if (!recipe.id) onClose(); 
+  };
+
+  const handleShare = async () => {
+    const text = `${formData.title}\n\n${formData.ingredients?.map(i => `• ${i.amount} ${i.name}`).join('\n') || ''}\n\n${formData.steps?.map((s, i) => `${i+1}. ${s}`).join('\n') || ''}`;
+    
+    if (navigator.share) {
+      try { await navigator.share({ title: formData.title, text }); } catch (e) {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('Recipe copied to clipboard!');
+      } catch (err) {
+        alert('Failed to copy to clipboard');
+      }
+    }
+  };
+
+  const updateRating = (rating) => {
+    const newData = { ...formData, rating };
+    setFormData(newData);
+    onSave(newData);
+  };
+
+  const handleNoteBlur = () => {
+     if (formData.notes !== recipe.notes) {
+        onSave(formData);
+     }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-stone-50 z-50 flex flex-col animate-in slide-in-from-bottom-4 duration-300">
+      {/* Header */}
+      <div className="bg-white px-4 py-3 border-b flex justify-between items-center shrink-0 sticky top-0 z-10">
+        <button onClick={onClose} className="p-2 -ml-2 text-gray-500 hover:text-gray-900 rounded-full hover:bg-gray-100">
+           <X className="w-6 h-6" />
+        </button>
+        <span className="font-semibold text-gray-900">{isEditing ? (recipe.id ? 'Edit Recipe' : 'New Recipe') : 'Details'}</span>
+        {isEditing ? (
+           <button onClick={handleSave} className="text-orange-600 font-bold text-sm px-2">Save</button>
+        ) : (
+           <button onClick={() => setIsEditing(true)} className="text-orange-600 font-bold text-sm px-2">Edit</button>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        {isEditing ? (
+          <div className="p-4 space-y-6 max-w-2xl mx-auto">
+            {/* Import Tool */}
+             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <button 
+                  onClick={() => setShowImport(!showImport)} 
+                  className="w-full flex items-center justify-between text-sm font-medium text-gray-700"
+                >
+                  <span className="flex items-center gap-2"><FileText className="w-4 h-4 text-orange-600" /> Paste from Clipboard</span>
+                  {showImport ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {showImport && (
+                   <div className="mt-4 space-y-3">
+                      <textarea 
+                         className="w-full h-32 p-3 bg-gray-50 border rounded-lg text-base font-mono"
+                         placeholder="Paste raw recipe text here..."
+                         value={rawText}
+                         onChange={e => setRawText(e.target.value)}
+                      />
+                      <button onClick={parseRawText} className="w-full py-2 bg-gray-900 text-white rounded-lg text-sm font-medium">Auto-Fill Form</button>
+                   </div>
+                )}
+             </div>
+
+             <div className="space-y-4">
+               <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Title</label>
+                  <input 
+                     className="w-full text-xl font-semibold bg-transparent border-b border-gray-300 py-1 focus:border-orange-500 focus:outline-none rounded-none placeholder-gray-300" 
+                     placeholder="Recipe Name"
+                     value={formData.title}
+                     onChange={e => setFormData({...formData, title: e.target.value})}
+                  />
+               </div>
+               
+               <div className="grid grid-cols-4 gap-4">
+                  {[
+                     { l: 'Prep', k: 'prepTime' }, 
+                     { l: 'Cook', k: 'cookTime' }, 
+                     { l: 'Serves', k: 'servings' }, 
+                     { l: 'Cals', k: 'calories' }
+                  ].map(({l, k}) => (
+                     <div key={k} className="bg-white p-2 rounded-lg border border-gray-200">
+                        <label className="block text-[10px] text-gray-400 uppercase font-bold text-center mb-1">{l}</label>
+                        <input 
+                           type="number" 
+                           className="w-full text-center font-medium text-base focus:outline-none" 
+                           value={formData[k]} 
+                           onChange={e => setFormData({...formData, [k]: parseInt(e.target.value)||0})} 
+                        />
+                     </div>
+                  ))}
+               </div>
+
+               <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-2 ml-1">Ingredients (one per line)</label>
+                  <textarea 
+                     className="w-full h-40 p-3 bg-white border border-gray-200 rounded-xl text-base leading-relaxed focus:ring-1 focus:ring-orange-500 focus:border-orange-500 outline-none transition shadow-sm"
+                     value={ingText}
+                     onChange={e => setIngText(e.target.value)}
+                  />
+               </div>
+
+               <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-2 ml-1">Instructions (one per line)</label>
+                  <textarea 
+                     className="w-full h-40 p-3 bg-white border border-gray-200 rounded-xl text-base leading-relaxed focus:ring-1 focus:ring-orange-500 focus:border-orange-500 outline-none transition shadow-sm"
+                     value={stepText}
+                     onChange={e => setStepText(e.target.value)}
+                  />
+               </div>
+             </div>
+             
+             <div className="h-10"></div> {/* Spacer */}
+          </div>
+        ) : (
+          <div>
+             {/* Read View Header */}
+             <div className="bg-white p-6 pb-4 border-b border-gray-100">
+                <h1 className="text-2xl font-bold text-gray-900 mb-2 leading-tight">{formData.title}</h1>
+                
+                {/* Rating System */}
+                <div className="flex gap-1 mb-4">
+                  {[1,2,3,4,5].map(star => (
+                    <button 
+                      key={star} 
+                      onClick={() => updateRating(star)}
+                      className="focus:outline-none"
+                    >
+                      <Star 
+                        className={`w-6 h-6 ${star <= formData.rating ? 'fill-orange-400 text-orange-400' : 'text-gray-300'}`} 
+                      />
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-4 text-sm text-gray-500 mb-6">
+                   <span className="flex items-center gap-1.5"><Clock className="w-4 h-4" /> {formData.prepTime + formData.cookTime}m</span>
+                   <span>•</span>
+                   <span>{formData.calories} cal</span>
+                   <span>•</span>
+                   <span>{formData.servings} serv</span>
+                </div>
+                
+                <div className="flex gap-3">
+                   {/* Add To Plan Button */}
+                   <div className="relative flex-1">
+                      <button 
+                        onClick={() => setShowPlanMenu(!showPlanMenu)} 
+                        className="w-full py-2.5 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition flex justify-center items-center gap-2 text-sm"
+                      >
+                         <CalendarPlus className="w-4 h-4" /> Add to Plan
+                      </button>
+                      {showPlanMenu && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-20 animate-in fade-in zoom-in-95">
+                           <div className="text-xs font-bold text-gray-400 uppercase px-2 py-1">Select Day</div>
+                           {DAYS.map(day => (
+                              <button
+                                key={day}
+                                onClick={() => { onAddToPlan(day); setShowPlanMenu(false); }}
+                                className="w-full text-left px-3 py-2 text-sm font-medium text-gray-700 hover:bg-orange-50 hover:text-orange-700 rounded-lg transition"
+                              >
+                                {day}
+                              </button>
+                           ))}
+                        </div>
+                      )}
+                   </div>
+
+                   <button onClick={handleShare} className="w-12 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition flex justify-center items-center">
+                      <Share2 className="w-4 h-4" />
+                   </button>
+                   <button 
+                     onClick={() => {
+                        if(confirm('Delete recipe?')) { onDelete(formData.id); onClose(); }
+                     }} 
+                     className="w-12 flex items-center justify-center bg-gray-50 text-gray-400 rounded-lg hover:text-red-500 hover:bg-red-50"
+                  >
+                      <Trash2 className="w-4 h-4" />
+                   </button>
+                </div>
+             </div>
+
+             {/* Notes Feature */}
+             <div className="px-6 py-4 bg-yellow-50/50 border-b border-yellow-100">
+                <div className="flex gap-2 text-yellow-800/80">
+                   <MessageSquare className="w-4 h-4 shrink-0 mt-1" />
+                   <textarea 
+                      className="w-full bg-transparent border-none p-0 text-base italic focus:ring-0 placeholder-yellow-800/40 resize-none"
+                      placeholder="Add personal notes here (e.g. 'Use less salt')..."
+                      value={formData.notes || ''}
+                      onChange={e => setFormData({...formData, notes: e.target.value})}
+                      onBlur={handleNoteBlur}
+                      rows={formData.notes ? Math.max(2, formData.notes.split('\n').length) : 2}
+                   />
+                </div>
+             </div>
+
+             {/* Ingredients */}
+             <div className="p-6">
+                <h3 className="font-bold text-gray-900 mb-4 text-lg">Ingredients</h3>
+                <ul className="space-y-3">
+                   {formData.ingredients?.map((ing, i) => (
+                      <li key={i} className="flex items-start gap-3 text-gray-700 text-sm">
+                        <div className="w-1.5 h-1.5 bg-orange-400 rounded-full mt-1.5 shrink-0"></div>
+                        <span className="leading-relaxed">
+                           <span className="font-semibold text-gray-900">{ing.amount}</span> {ing.name}
+                        </span>
+                      </li>
+                   ))}
+                </ul>
+             </div>
+
+             <hr className="border-gray-100 mx-6" />
+
+             {/* Steps */}
+             <div className="p-6 pb-20">
+                <h3 className="font-bold text-gray-900 mb-4 text-lg">Instructions</h3>
+                <div className="space-y-6">
+                   {formData.steps?.map((step, i) => (
+                      <div key={i} className="flex gap-4">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-stone-200 text-gray-600 text-xs font-bold flex items-center justify-center mt-0.5">
+                           {i+1}
+                        </span>
+                        <p className="text-gray-700 text-sm leading-relaxed pt-0.5">{step}</p>
+                      </div>
+                   ))}
+                </div>
+             </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// 3. COOKING MODE (Clean, Immersive)
+const CookingMode = ({ recipe, onClose }) => {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [activeTab, setActiveTab] = useState('steps'); 
+
+  // Safety check
+  const ingredients = recipe.ingredients || [];
+  const steps = recipe.steps || [];
+
+  const isCompleted = currentStep === steps.length;
+  const progress = steps.length > 0 ? ((currentStep) / steps.length) * 100 : 0;
+
+  return (
+    <div className="fixed inset-0 bg-white z-50 flex flex-col">
+      {/* Immersive Header */}
+      <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
+        <button onClick={onClose} className="p-2 -ml-2 text-gray-400 hover:text-gray-900"><X className="w-6 h-6" /></button>
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+           <button 
+            onClick={() => setActiveTab('ing')} 
+            className={`px-3 py-1 text-xs font-bold rounded-md transition ${activeTab === 'ing' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+           >
+             Ingredients
+           </button>
+           <button 
+            onClick={() => setActiveTab('steps')} 
+            className={`px-3 py-1 text-xs font-bold rounded-md transition ${activeTab === 'steps' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+           >
+             Steps
+           </button>
+        </div>
+        <div className="w-8"></div> {/* Spacer for center alignment */}
+      </div>
+
+      {/* Progress Bar */}
+      <div className="h-1 bg-gray-100 w-full">
+         <div className="h-full bg-orange-500 transition-all duration-300" style={{ width: `${progress}%` }}></div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto bg-stone-50">
+         {activeTab === 'ing' ? (
+            <div className="p-6 space-y-3 max-w-lg mx-auto">
+               {ingredients.map((ing, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-200 shadow-sm">
+                     <div className="w-2 h-2 rounded-full bg-orange-200"></div>
+                     <span className="text-gray-700 text-sm font-medium"><span className="text-gray-900 font-bold">{ing.amount}</span> {ing.name}</span>
+                  </div>
+               ))}
+            </div>
+         ) : isCompleted ? (
+            <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6 text-green-600 animate-in zoom-in">
+                  <Check className="w-10 h-10" />
+               </div>
+               <h2 className="text-2xl font-bold text-gray-900 mb-2">Bon Appétit!</h2>
+               <p className="text-gray-500 mb-8">You've completed this recipe.</p>
+               <button onClick={onClose} className="px-8 py-3 bg-gray-900 text-white font-bold rounded-full shadow-lg hover:scale-105 transition">Done Cooking</button>
+            </div>
+         ) : (
+            <div className="h-full flex flex-col p-6 max-w-xl mx-auto">
+               <div className="flex-1 flex flex-col justify-center">
+                  <span className="text-xs font-bold text-orange-600 uppercase tracking-wider mb-4 block">Step {currentStep + 1}</span>
+                  <p className="text-2xl md:text-3xl font-medium text-gray-900 leading-snug">
+                     {steps[currentStep]}
+                  </p>
+               </div>
+            </div>
+         )}
+      </div>
+
+      {/* Footer Nav */}
+      {!isCompleted && activeTab === 'steps' && (
+         <div className="p-4 bg-white border-t border-gray-100 flex gap-4">
+            <button 
+               onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+               disabled={currentStep === 0}
+               className="w-14 h-14 flex items-center justify-center rounded-full border border-gray-200 text-gray-400 disabled:opacity-30 hover:bg-gray-50"
+            >
+               <ArrowLeft className="w-6 h-6" />
+            </button>
+            <button 
+               onClick={() => setCurrentStep(currentStep + 1)}
+               className="flex-1 h-14 bg-gray-900 text-white rounded-full font-bold text-lg flex items-center justify-center gap-2 hover:bg-gray-800 active:scale-95 transition shadow-lg shadow-gray-200"
+            >
+               {currentStep === steps.length - 1 ? 'Finish' : 'Next Step'} <ArrowRight className="w-5 h-5" />
+            </button>
+         </div>
+      )}
+    </div>
+  );
+};
+
+// 4. GROCERY LIST (Dense, Scannable)
+const GroceryList = ({ plan, recipes }) => {
+  const [checkedItems, setCheckedItems] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('grocery_checks') || '{}'); } catch { return {}; }
+  });
+  const [smartList, setSmartList] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('smart_list') || 'null'); } catch { return null; }
+  });
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => { localStorage.setItem('grocery_checks', JSON.stringify(checkedItems)); }, [checkedItems]);
+  useEffect(() => { localStorage.setItem('smart_list', JSON.stringify(smartList)); }, [smartList]);
+
+  // --- SMART LIST GENERATION ---
+  const generateSmartList = async () => {
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      // 1. Consolidate Recipe Data
+      const activeRecipes = Object.values(plan)
+        .filter(id => id)
+        .map(id => recipes.find(r => r.id === id))
+        .filter(r => r);
+
+      if (activeRecipes.length === 0) {
+        throw new Error("No recipes in plan to generate list from.");
+      }
+
+      const userContent = activeRecipes.map(r => `
+${r.title}
+Ingredients:
+${r.ingredients?.map(i => `• ${i.amount} ${i.name}`).join('\n') || ''}
+`).join('\n---\n');
+
+      // 2. Call Gemini API
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: userContent }] }],
+          systemInstruction: { parts: [{ text: GROCERY_SYSTEM_PROMPT }] }
+        })
+      });
+
+      if (!response.ok) {
+         const errData = await response.json();
+         throw new Error(errData.error?.message || "Failed to generate list");
+      }
+
+      const result = await response.json();
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (text) {
+        setSmartList(text);
+      } else {
+        throw new Error("Empty response from AI");
+      }
+
+    } catch (err) {
+      setError(err.message);
+      alert(`Error generating list: ${err.message}. Check API Key.`);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // --- RENDERERS ---
+
+  // Parser for the LLM Markdown Output
+  const renderSmartList = () => {
+    if (!smartList) return null;
+    
+    const lines = smartList.split('\n');
+    const renderedLines = [];
+    let currentCategory = null;
+
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      // Category Header (## Category)
+      if (trimmed.startsWith('##')) {
+        currentCategory = trimmed.replace(/^##\s*/, '');
+        renderedLines.push(
+          <h3 key={`cat-${idx}`} className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6 px-1">
+            {currentCategory}
+          </h3>
+        );
+        return;
+      }
+
+      // List Item or Hierarchy
+      if (trimmed.startsWith('*')) {
+        const isBold = trimmed.includes('**');
+        const isChild = line.startsWith('    *'); // 4 spaces indentation
+        const cleanText = trimmed.replace(/^\*\s*/, '').replace(/\*\*/g, ''); // Remove bullets and bold markers
+        
+        // Create a unique ID for checking based on text content
+        const itemId = `smart-${cleanText.replace(/\s/g, '-').toLowerCase()}`;
+        const isChecked = checkedItems[itemId];
+
+        renderedLines.push(
+          <button 
+            key={`item-${idx}`}
+            onClick={() => toggleItem(itemId)}
+            className={`w-full text-left flex items-start gap-3 py-2 px-2 hover:bg-gray-50 rounded-lg transition group
+              ${isChild ? 'ml-4 border-l-2 border-gray-100 pl-3' : ''}
+              ${isBold ? 'font-semibold text-gray-900 mt-1' : 'text-gray-700 font-medium'}
+              ${isChecked ? 'opacity-50' : ''}
+            `}
+          >
+             {(!isBold || isChild) && (
+                <div className={`mt-1 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors
+                   ${isChecked ? 'bg-gray-400 border-gray-400' : 'border-gray-300 group-hover:border-orange-500'}`}>
+                   {isChecked && <Check className="w-3 h-3 text-white" />}
+                </div>
+             )}
+             <div className={`text-sm ${isChecked ? 'line-through text-gray-400' : ''}`}>
+                {cleanText}
+             </div>
+          </button>
+        );
+      }
+    });
+
+    return <div className="pb-20">{renderedLines}</div>;
+  };
+
+  const toggleItem = (key) => setCheckedItems(prev => ({ ...prev, [key]: !prev[key] }));
+  const clearChecks = () => setCheckedItems({});
+
+  // Standard List Logic (Fallback)
+  const organizedList = useMemo(() => {
+    const categories = { 'Produce': {}, 'Meat & Seafood': {}, 'Dairy & Refrigerated': {}, 'Pantry & Grains': {}, 'Frozen': {}, 'Other': {} };
+    Object.entries(plan).forEach(([day, recipeId]) => {
+      if (!recipeId) return;
+      const recipe = recipes.find(r => r.id === recipeId);
+      if (!recipe) return;
+      
+      const ingredients = recipe.ingredients || [];
+      ingredients.forEach(ing => {
+        let { name, amount } = ing;
+        if (!amount) {
+           const match = name.match(/^([\d\/\.\s\-]+(cup|tbsp|tsp|oz|lb|g|kg|ml|clove|can|stick)s?\.?)\s+(.*)/i);
+           if (match) { amount = match[1].trim(); name = match[3].trim(); }
+        }
+        const key = name.trim().toLowerCase();
+        const cat = getCategory(key);
+        if (!categories[cat][key]) categories[cat][key] = { name: name.trim(), items: [] };
+        categories[cat][key].items.push({ amount: amount || '', recipe: recipe.title });
+      });
+    });
+    return categories;
+  }, [plan, recipes]);
+
+  const hasStandardItems = Object.values(organizedList).some(cat => Object.keys(cat).length > 0);
+
+  if (!hasStandardItems && !smartList) return (
+    <div className="flex flex-col items-center justify-center h-[60vh] text-gray-400">
+       <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4"><ShoppingBag className="w-8 h-8 text-gray-300" /></div>
+       <p className="font-medium">Your list is empty</p>
+       <p className="text-sm">Plan some meals to get started</p>
+    </div>
+  );
+
+  return (
+    <div className="pb-20">
+      <div className="flex justify-between items-center mb-6 px-1 sticky top-0 bg-stone-50 py-2 z-10">
+        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+           Groceries 
+           {smartList && <Sparkles className="w-4 h-4 text-orange-500 fill-orange-100" />}
+        </h2>
+        
+        <div className="flex gap-2">
+           {/* AI Toggle / Generate */}
+           <button 
+             onClick={generateSmartList}
+             disabled={isGenerating}
+             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition border shadow-sm
+               ${isGenerating ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 hover:border-orange-300 hover:text-orange-600'}`}
+           >
+              {isGenerating ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+              {smartList ? 'Regenerate' : 'Smart List'}
+           </button>
+
+           {/* Revert to Standard */}
+           {smartList && (
+              <button onClick={() => setSmartList(null)} className="px-3 py-1.5 bg-gray-200 text-gray-600 rounded-full text-xs font-bold">
+                 Standard
+              </button>
+           )}
+
+           {Object.keys(checkedItems).length > 0 && (
+              <button onClick={clearChecks} className="text-xs font-semibold text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-full transition">Clear</button>
+           )}
+        </div>
+      </div>
+
+      {/* Error Banner */}
+      {error && (
+         <div className="mb-4 bg-red-50 text-red-600 p-3 rounded-xl text-sm flex items-center gap-2 border border-red-100">
+            <AlertCircle className="w-4 h-4" /> {error}
+         </div>
+      )}
+
+      {/* VIEW: SMART LIST (AI) */}
+      {smartList ? (
+         renderSmartList()
+      ) : (
+      /* VIEW: STANDARD LIST */
+      <div className="space-y-6">
+        {Object.keys(organizedList).map(section => {
+           const items = organizedList[section];
+           const keys = Object.keys(items).sort();
+           if (keys.length === 0) return null;
+
+           return (
+              <div key={section}>
+                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">{section}</h3>
+                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden divide-y divide-gray-100">
+                    {keys.map(key => {
+                       const data = items[key];
+                       const isChecked = checkedItems[key];
+                       const amountDisplay = data.items.map(i => i.amount).filter(a => a).join(' + ');
+
+                       return (
+                          <button 
+                             key={key} 
+                             onClick={() => toggleItem(key)}
+                             className={`w-full text-left p-3.5 flex items-start gap-3.5 transition-colors hover:bg-gray-50 group
+                                ${isChecked ? 'bg-gray-50' : 'bg-white'}`}
+                          >
+                             <div className={`mt-0.5 w-5 h-5 rounded-full border flex items-center justify-center transition-all shrink-0
+                                ${isChecked ? 'bg-gray-400 border-gray-400' : 'border-gray-300 group-hover:border-orange-500'}`}>
+                                {isChecked && <Check className="w-3 h-3 text-white" />}
+                             </div>
+                             <div className="flex-1 min-w-0">
+                                <div className={`text-sm font-medium leading-tight truncate ${isChecked ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                                   {data.name}
+                                </div>
+                                {(amountDisplay || data.items.length > 1) && !isChecked && (
+                                   <div className="text-xs text-orange-600 font-medium mt-0.5 truncate">
+                                      {amountDisplay || `${data.items.length} items`}
+                                   </div>
+                                )}
+                             </div>
+                          </button>
+                       );
+                    })}
+                 </div>
+              </div>
+           );
+        })}
+      </div>
+      )}
+    </div>
+  );
+};
+
+// 5. MEAL PLANNER
+const MealPlanner = ({ plan, setPlan, recipes, onNavigateToCook, onOpenRecipe }) => {
+  const [isSelectorOpen, setIsSelectorOpen] = useState(false);
+  const [activeDay, setActiveDay] = useState(null);
+  const [dayToRemove, setDayToRemove] = useState(null); // State for delete confirmation
+
+  const openSelector = (day) => { setActiveDay(day); setIsSelectorOpen(true); };
+  const selectRecipe = (id) => { setPlan(p => ({ ...p, [activeDay]: id })); setIsSelectorOpen(false); };
+  
+  const handleRemoveClick = (day, e) => {
+    e.stopPropagation();
+    setDayToRemove(day);
+  };
+
+  const confirmRemove = () => {
+    if (dayToRemove) {
+      setPlan(p => ({ ...p, [dayToRemove]: null }));
+      setDayToRemove(null);
+    }
+  };
+
+  return (
+    <div className="pb-20">
+      <h2 className="text-2xl font-bold text-gray-900 mb-6 px-1">Weekly Plan</h2>
+      
+      <div className="space-y-3">
+        {DAYS.map(day => {
+          const recipeId = plan[day];
+          const recipe = recipes.find(r => r.id === recipeId);
+
+          return (
+             <div key={day} className="flex gap-4">
+                <div className="w-12 pt-4 text-xs font-bold text-gray-400 uppercase text-right shrink-0">{day.substring(0,3)}</div>
+                
+                {recipe ? (
+                   <div 
+                      onClick={() => onOpenRecipe(recipe)}
+                      className="flex-1 bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center cursor-pointer hover:border-orange-200 transition group relative overflow-hidden"
+                   >
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500"></div>
+                      <div className="pl-2">
+                         <h3 className="font-semibold text-gray-900 leading-tight">{recipe.title}</h3>
+                         <div className="text-xs text-gray-500 mt-1 flex gap-2">
+                            <span>{recipe.prepTime + recipe.cookTime} min</span>
+                            <span>•</span>
+                            <span>{recipe.calories} cal</span>
+                         </div>
+                      </div>
+                      <button 
+                        onClick={(e) => handleRemoveClick(day, e)}
+                        className="px-3 py-1 text-xs font-bold text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition uppercase tracking-wide"
+                      >
+                         Remove
+                      </button>
+                   </div>
+                ) : (
+                   <button 
+                      onClick={() => openSelector(day)}
+                      className="flex-1 h-16 border border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-400 text-sm font-medium hover:bg-gray-50 hover:border-gray-400 transition"
+                   >
+                      <Plus className="w-4 h-4 mr-1" /> Add Meal
+                   </button>
+                )}
+             </div>
+          );
+        })}
+      </div>
+
+      {/* Recipe Selector Modal */}
+      {isSelectorOpen && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-end md:items-center justify-center animate-in fade-in">
+          <div className="bg-white w-full md:max-w-lg md:rounded-2xl rounded-t-2xl shadow-2xl max-h-[85vh] flex flex-col">
+            <div className="p-4 border-b flex items-center gap-3">
+               <Search className="w-5 h-5 text-gray-400" />
+               <input autoFocus placeholder="Search recipes..." className="flex-1 text-base outline-none" />
+               <button onClick={() => setIsSelectorOpen(false)} className="text-gray-400 hover:text-gray-900 font-medium text-sm">Cancel</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {recipes.map(r => (
+                <button 
+                  key={r.id} 
+                  onClick={() => selectRecipe(r.id)}
+                  className="w-full text-left p-3 hover:bg-gray-50 rounded-xl transition flex items-center justify-between group"
+                >
+                  <div>
+                     <div className="font-semibold text-gray-900">{r.title}</div>
+                     <div className="text-xs text-gray-500">{r.prepTime}m prep • {r.ingredients?.length || 0} ing</div>
+                  </div>
+                  <Plus className="w-5 h-5 text-gray-300 group-hover:text-orange-500" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {dayToRemove && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in p-4">
+           <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 max-w-sm w-full">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Are you sure?</h3>
+              <p className="text-gray-500 mb-6 text-sm">Do you want to remove the meal from {dayToRemove}?</p>
+              <div className="flex gap-3">
+                 <button 
+                    onClick={() => setDayToRemove(null)}
+                    className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition"
+                 >
+                    Keep
+                 </button>
+                 <button 
+                    onClick={confirmRemove}
+                    className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition shadow-lg shadow-red-200"
+                 >
+                    Yes, remove
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// 6. COOKBOOK
+const Cookbook = ({ recipes, onEditRecipe, onAddRecipe }) => {
+   return (
+      <div className="pb-20">
+         <div className="flex justify-between items-center mb-6 px-1">
+            <h2 className="text-2xl font-bold text-gray-900">My Recipes</h2>
+            <button onClick={onAddRecipe} className="bg-gray-900 text-white rounded-full p-2 hover:bg-gray-700 transition">
+               <Plus className="w-6 h-6" />
+            </button>
+         </div>
+
+         <div className="grid grid-cols-2 gap-4">
+            {recipes.map(r => (
+               <div 
+                  key={r.id} 
+                  onClick={() => onEditRecipe(r)}
+                  className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col h-40"
+               >
+                  <div className="flex-1">
+                     <h3 className="font-bold text-gray-900 leading-snug line-clamp-2">{r.title}</h3>
+                  </div>
+                  <div className="mt-auto pt-4 border-t border-gray-50 flex justify-between items-end text-xs text-gray-500">
+                     <div>
+                        <div className="font-semibold text-gray-900">{r.prepTime}m</div>
+                        <div>Prep</div>
+                     </div>
+                     <div className="text-right">
+                        <div className="font-semibold text-gray-900">{r.ingredients?.length || 0}</div>
+                        <div>Items</div>
+                     </div>
+                  </div>
+               </div>
+            ))}
+         </div>
+      </div>
+   );
+};
+
+// 7. MAIN LAYOUT
+const App = () => {
+  const [view, setView] = useState('plan'); 
+  const [selectedDay, setSelectedDay] = useState('Monday');
+  const [cookingRecipe, setCookingRecipe] = useState(null);
+  const [managingRecipe, setManagingRecipe] = useState(null); 
+  const [prepRecipe, setPrepRecipe] = useState(null); // New state for prep modal
+
+  const [recipes, setRecipes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('my_recipes') || JSON.stringify(DEFAULT_LIBRARY)); } 
+    catch { return DEFAULT_LIBRARY; }
+  });
+
+  const [plan, setPlan] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('weekly_plan') || '{}'); } catch { return {}; }
+  });
+
+  const [prepState, setPrepState] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('prep_state') || '{}'); } catch { return {}; }
+  });
+
+  useEffect(() => { localStorage.setItem('weekly_plan', JSON.stringify(plan)); }, [plan]);
+  useEffect(() => { localStorage.setItem('my_recipes', JSON.stringify(recipes)); }, [recipes]);
+  useEffect(() => { localStorage.setItem('prep_state', JSON.stringify(prepState)); }, [prepState]);
+
+  const activeRecipe = recipes.find(r => r.id === plan[selectedDay]);
+
+  const saveRecipe = (u) => {
+    setRecipes(p => {
+       const exists = p.find(r => r.id === u.id);
+       return exists ? p.map(r => r.id === u.id ? u : r) : [...p, u];
+    });
+  };
+  
+  const deleteRecipe = (id) => {
+    setRecipes(p => p.filter(r => r.id !== id));
+    setPlan(p => {
+       const n = {...p};
+       Object.keys(n).forEach(d => { if(n[d] === id) n[d] = null; });
+       return n;
+    });
+  };
+
+  const togglePrep = (recipeId, ingredientIdx) => {
+    setPrepState(prev => {
+      const recipeState = prev[recipeId] || {};
+      return {
+        ...prev,
+        [recipeId]: {
+          ...recipeState,
+          [ingredientIdx]: !recipeState[ingredientIdx]
+        }
+      };
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-stone-50 font-sans text-gray-900 selection:bg-orange-100">
+      
+      {/* Mobile Top Bar */}
+      <div className="md:hidden pt-safe sticky top-0 bg-stone-50/80 backdrop-blur-md z-30 px-4 py-2 flex justify-between items-center">
+         <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white">
+               <ChefHat className="w-5 h-5" />
+            </div>
+            <span className="font-bold text-lg tracking-tight">WeeklyChef</span>
+         </div>
+         <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden">
+            {/* User Avatar Placeholder */}
+            <div className="w-full h-full bg-gradient-to-br from-orange-400 to-red-400"></div>
+         </div>
+      </div>
+
+      <main className="max-w-2xl mx-auto p-4 md:pt-10 min-h-screen">
+         {view === 'plan' && <MealPlanner 
+            plan={plan} 
+            setPlan={setPlan} 
+            recipes={recipes} 
+            onNavigateToCook={(d) => { setSelectedDay(d); setView('cook'); }} 
+            onOpenRecipe={setManagingRecipe}
+         />}
+         {view === 'shop' && <GroceryList plan={plan} recipes={recipes} />}
+         {view === 'recipes' && <Cookbook recipes={recipes} onEditRecipe={setManagingRecipe} onAddRecipe={() => setManagingRecipe({})} />}
+         
+         {view === 'cook' && (
+            <div className="animate-in fade-in">
+               <div className="flex bg-gray-100 p-1 rounded-xl mb-6 overflow-x-auto no-scrollbar">
+                  {DAYS.map(d => (
+                     <button key={d} onClick={() => setSelectedDay(d)} className={`flex-1 min-w-[60px] py-2 text-xs font-bold rounded-lg transition ${selectedDay === d ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>
+                        {d.substring(0,3)}
+                     </button>
+                  ))}
+               </div>
+               
+               {activeRecipe ? (
+                  <div className="bg-white rounded-3xl shadow-xl shadow-gray-200 overflow-hidden border border-white">
+                     <div className="h-48 bg-stone-100 relative">
+                        {/* Placeholder Food Image Pattern */}
+                        <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(#a8a29e 2px, transparent 2px)', backgroundSize: '20px 20px'}}></div>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                           <Utensils className="w-16 h-16 text-gray-300" />
+                        </div>
+                        <button onClick={() => setManagingRecipe(activeRecipe)} className="absolute top-4 right-4 p-2 bg-white/50 backdrop-blur rounded-full hover:bg-white transition">
+                           <Edit3 className="w-4 h-4 text-gray-600" />
+                        </button>
+                     </div>
+                     <div className="p-8">
+                        <h1 className="text-3xl font-bold text-gray-900 mb-2 leading-tight">{activeRecipe.title}</h1>
+                        <div className="flex gap-4 text-sm text-gray-500 mb-8 font-medium">
+                           <span>{activeRecipe.prepTime + activeRecipe.cookTime} min</span>
+                           <span>•</span>
+                           <span>{activeRecipe.calories} cal</span>
+                        </div>
+                        <div className="flex gap-3">
+                           <button 
+                              onClick={() => setCookingRecipe(activeRecipe)}
+                              className="flex-1 py-4 bg-gray-900 text-white font-bold rounded-2xl shadow-lg hover:scale-[1.02] active:scale-95 transition flex items-center justify-center gap-2"
+                           >
+                              <ChefHat className="w-5 h-5" /> Start Cooking
+                           </button>
+                           <button 
+                              onClick={() => setPrepRecipe(activeRecipe)}
+                              className="px-4 py-4 bg-orange-100 text-orange-700 font-bold rounded-2xl hover:bg-orange-200 active:scale-95 transition flex flex-col items-center justify-center gap-1 min-w-[80px]"
+                           >
+                              <Utensils className="w-5 h-5" />
+                              <span className="text-[10px] uppercase tracking-wider">Prep</span>
+                           </button>
+                        </div>
+                     </div>
+                  </div>
+               ) : (
+                  <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                     <p className="font-medium mb-4">Kitchen is closed for {selectedDay}</p>
+                     <button onClick={() => setView('plan')} className="text-orange-600 font-bold text-sm">Plan a meal</button>
+                  </div>
+               )}
+            </div>
+         )}
+      </main>
+
+      {/* Bottom Nav */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-gray-200 pb-safe pt-2 px-6 flex justify-between md:hidden z-30">
+         {[
+            { id: 'plan', icon: Calendar, label: 'Plan' },
+            { id: 'recipes', icon: BookOpen, label: 'Recipes' },
+            { id: 'shop', icon: ShoppingBag, label: 'Shop' },
+            { id: 'cook', icon: ChefHat, label: 'Cook' },
+         ].map(item => (
+            <button 
+               key={item.id} 
+               onClick={() => setView(item.id)} 
+               className={`flex flex-col items-center gap-1 p-2 min-w-[64px] transition ${view === item.id ? 'text-orange-600' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+               <item.icon className={`w-6 h-6 ${view === item.id ? 'fill-current opacity-20' : ''}`} />
+               <span className="text-[10px] font-bold">{item.label}</span>
+            </button>
+         ))}
+      </nav>
+      
+      {/* Immersive Modals */}
+      {cookingRecipe && <CookingMode recipe={cookingRecipe} onClose={() => setCookingRecipe(null)} />}
+      {prepRecipe && <PrepMode recipe={prepRecipe} prepState={prepState} togglePrep={togglePrep} onClose={() => setPrepRecipe(null)} />}
+      {managingRecipe && <RecipeManager 
+         recipe={managingRecipe} 
+         onSave={saveRecipe} 
+         onDelete={deleteRecipe} 
+         onClose={() => setManagingRecipe(null)}
+         onAddToPlan={(day) => {
+            setPlan(prev => ({ ...prev, [day]: managingRecipe.id }));
+            alert(`Added ${managingRecipe.title} to ${day}`);
+         }}
+      />}
+    </div>
+  );
+};
+
+export default App;
